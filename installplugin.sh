@@ -1,3 +1,3 @@
 cf uninstall-plugin usage-report
 go build
-cf install-plugin usagereport-plugin
+cf install-plugin -f usagereport-plugin

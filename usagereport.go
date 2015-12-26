@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/cloudfoundry/cli/plugin"
 	"github.com/krujos/usagereport-plugin/apihelper"
@@ -53,6 +54,11 @@ func (cmd *UsageReportCmd) GetMetadata() plugin.PluginMetadata {
 	}
 }
 
+type SpaceByName []space
+func (a SpaceByName) Len() int           { return len(a) }
+func (a SpaceByName) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a SpaceByName) Less(i, j int) bool { return a[i].name < a[j].name }
+
 //UsageReportCommand doer
 func (cmd *UsageReportCmd) UsageReportCommand(args []string) {
 	fmt.Println("Gathering usage information")
@@ -68,11 +74,15 @@ func (cmd *UsageReportCmd) UsageReportCommand(args []string) {
 		os.Exit(1)
 	}
 
+	totalSpaces := 0
 	totalApps := 0
 	totalInstances := 0
 	for _, org := range orgs {
-		fmt.Printf("Org %s is consuming %d MB of %d MB.\n", org.name, org.memoryUsage, org.memoryQuota)
-		for _, space := range org.spaces {
+		spaces := org.spaces
+		totalSpaces += len(spaces)
+		sort.Sort(SpaceByName(spaces))
+		fmt.Printf("Org %s is consuming %d MB of %d MB in %d spaces.\n", org.name, org.memoryUsage, org.memoryQuota, len(spaces))
+		for _, space := range spaces {
 			consumed := 0
 			instances := 0
 			runningApps := 0
@@ -95,8 +105,8 @@ func (cmd *UsageReportCmd) UsageReportCommand(args []string) {
 			totalApps += len(space.apps)
 		}
 	}
-	fmt.Printf("You are running %d apps in %d orgs, with a total of %d instances.\n",
-		totalApps, len(orgs), totalInstances)
+	fmt.Printf("You are running %d apps in %d orgs/%d spaces, with a total of %d instances.\n",
+		totalApps, len(orgs), totalSpaces, totalInstances)
 }
 
 func (cmd *UsageReportCmd) getOrgs() ([]org, error) {
