@@ -8,8 +8,8 @@ import (
 
 	"github.com/cloudfoundry/cli/plugin"
 	"github.com/cloudfoundry/cli/cf/formatters"
-	"github.com/jeaniejung/Wildcard_Plugin/table"
-	"github.com/krujos/usagereport-plugin/apihelper"
+	"github.com/lemaral/Wildcard_Plugin/table"
+	"github.com/lemaral/usagereport-plugin/apihelper"
 )
 
 //UsageReportCmd the plugin
