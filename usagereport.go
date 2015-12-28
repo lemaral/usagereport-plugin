@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 
 	"github.com/cloudfoundry/cli/plugin"
+	"github.com/cloudfoundry/cli/cf/formatters"
+	"github.com/jeaniejung/Wildcard_Plugin/table"
 	"github.com/krujos/usagereport-plugin/apihelper"
 )
 
@@ -61,7 +64,7 @@ func (a SpaceByName) Less(i, j int) bool { return a[i].name < a[j].name }
 
 //UsageReportCommand doer
 func (cmd *UsageReportCmd) UsageReportCommand(args []string) {
-	fmt.Println("Gathering usage information")
+	tableHeader := []string{("name"), ("apps"), ("instances"), ("memory"), ("mem%quota")}
 
 	if nil == cmd.cli {
 		fmt.Println("ERROR: CLI Connection is nil!")
@@ -73,40 +76,62 @@ func (cmd *UsageReportCmd) UsageReportCommand(args []string) {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	fmt.Println("Gathering usage information for", len(orgs), "orgs")
 
 	totalSpaces := 0
-	totalApps := 0
-	totalInstances := 0
 	for _, org := range orgs {
+		totalApps := 0
+		totalRunningApps := 0
+		totalInstances := 0
+		totalRunningInstances := 0
+		var totalMemory int64 = 0
+
 		spaces := org.spaces
-		totalSpaces += len(spaces)
 		sort.Sort(SpaceByName(spaces))
-		fmt.Printf("Org %s is consuming %d MB of %d MB in %d spaces.\n", org.name, org.memoryUsage, org.memoryQuota, len(spaces))
+		var memoryUsage int64 = int64(org.memoryUsage)
+		var memoryQuota int64 = int64(org.memoryQuota)
+		memoryUsageString := formatters.ByteSize(memoryUsage * formatters.MEGABYTE)
+		memoryQuotaString := formatters.ByteSize(memoryQuota * formatters.MEGABYTE)
+		var quotaPercentOrg float64 = float64(100.0 * memoryUsage / memoryQuota)
+		percentOrgString := fmt.Sprintf("%02.2f%%", quotaPercentOrg);
+		fmt.Printf("Org %s is consuming %s of %s (%s) in %d spaces.\n", org.name, memoryUsageString, memoryQuotaString, percentOrgString, len(spaces))
+		mytable := table.NewTable(tableHeader)
 		for _, space := range spaces {
-			consumed := 0
+			var memory int64 = 0
 			instances := 0
 			runningApps := 0
 			runningInstances := 0
 			for _, app := range space.apps {
 				if app.running {
-					consumed += int(app.instances * app.ram)
+					memory += int64(app.instances * app.ram)
 					runningApps++
 					runningInstances += app.instances
 				}
 				instances += int(app.instances)
 			}
-			fmt.Printf("\tSpace %s is consuming %d MB memory (%d%%) of org quota.\n",
-				space.name, consumed, (100 * consumed / org.memoryQuota))
-			fmt.Printf("\t\t%d apps: %d running %d stopped\n", len(space.apps),
-				runningApps, len(space.apps)-runningApps)
-			fmt.Printf("\t\t%d instances: %d running, %d stopped\n", instances,
-				runningInstances, instances-runningInstances)
-			totalInstances += instances
+			appsString := strconv.Itoa(runningApps) + "/" + strconv.Itoa(len(space.apps))
+			instancesString := strconv.Itoa(runningInstances) + "/" + strconv.Itoa(instances)
+			memoryString := formatters.ByteSize(memory * formatters.MEGABYTE)
+			var quotaPercent float64 = float64(100.0 * memory / int64(org.memoryQuota))
+			percentString := fmt.Sprintf("%02.2f%%", quotaPercent);
+			mytable.Add(space.name, appsString, instancesString, memoryString, percentString)
+
 			totalApps += len(space.apps)
+			totalRunningApps += runningApps
+			totalInstances += instances
+			totalRunningInstances += runningInstances
+			totalMemory += memory
 		}
+		appsString := strconv.Itoa(totalRunningApps) + "/" + strconv.Itoa(totalApps)
+		instancesString := strconv.Itoa(totalRunningInstances) + "/" + strconv.Itoa(totalInstances)
+		memoryString := formatters.ByteSize(totalMemory * formatters.MEGABYTE)
+		var quotaPercent float64 = float64(100 * totalMemory / int64(org.memoryQuota))
+		percentString := fmt.Sprintf("%02.2f%%", quotaPercent);
+		mytable.Add("Total", appsString, instancesString, memoryString, percentString)
+		mytable.Print()
+		totalSpaces += len(spaces)
 	}
-	fmt.Printf("You are running %d apps in %d orgs/%d spaces, with a total of %d instances.\n",
-		totalApps, len(orgs), totalSpaces, totalInstances)
+	fmt.Printf("Total orgs:%d, Total spaces: %d\n", len(orgs), totalSpaces)
 }
 
 func (cmd *UsageReportCmd) getOrgs() ([]org, error) {

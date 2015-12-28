@@ -2,7 +2,6 @@ package apihelper
 
 import (
 	"strconv"
-	"fmt"
 
 	"github.com/cloudfoundry/cli/plugin"
 	"github.com/krujos/cfcurl"
@@ -102,7 +101,6 @@ func (api *APIHelper) GetOrgSpaces(cli plugin.CliConnection, spacesURL string) (
 		for _, s := range spacesJSON["resources"].([]interface{}) {
 			theSpace := s.(map[string]interface{})
 			entity := theSpace["entity"].(map[string]interface{})
-			fmt.Println("Space ", entity["name"].(string))
 			spaces = append(spaces,
 				Space{
 					AppsURL: entity["apps_url"].(string),
